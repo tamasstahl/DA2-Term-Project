@@ -27,7 +27,7 @@ library(segmented)
 library(texreg)
 
 
-my_url <- "https://raw.githubusercontent.com/tamasstahl/DA2-Term-Project/main/data/raw/Pisa_2018_Data.csv"
+my_url <- "https://raw.githubusercontent.com/tamasstahl/DA2-Term-Project/main/data/Pisa_2018_Data.csv"
 df <- read_csv( my_url )
 
 df <-df %>% transmute( countries =  Countries,
@@ -344,8 +344,7 @@ htmlreg( list(reg1 , reg2 , reg3 , reg4),
          custom.model.names = c("(1)","(2)","(3)","(4)"),
          custom.coef.names = c("Intercept","internet at home on weekdays","internet at home on weekdays (<180 mins)","internet at home on weekdays (>=180 mins)",
                                "OECD_or_not","lspline(life_sat,6)1","lspline(life_sat,6)2","bullying ratio"),
-         omit.coef = "OECD_or_not|life_sat",
-         file = paste0( data_out ,'PISA_2018.html'), include.ci = FALSE,
+         omit.coef = "OECD_or_not|life_sat", include.ci = FALSE,
          single.row = FALSE, siunitx = TRUE,
          custom.gof.rows = list( OECD_or_not = c("NO","NO","YES","YES"),
                                  Other_Special = c("NO","NO","NO","YES")))

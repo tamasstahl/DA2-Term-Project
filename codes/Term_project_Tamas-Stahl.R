@@ -22,7 +22,7 @@ library(gridExtra)
 library(segmented)
 
 # Call the data from github
-my_url <- "https://raw.githubusercontent.com/tamasstahl/DA2-Term-Project/main/data/raw/Pisa_2018_Data.csv"
+my_url <- "https://raw.githubusercontent.com/tamasstahl/DA2-Term-Project/main/data/Pisa_2018_Data.csv"
 df <- read_csv( my_url )
 
 
