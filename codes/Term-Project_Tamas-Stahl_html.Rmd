@@ -1,0 +1,449 @@
+---
+title: "Term Project - PISA test 2018"
+author: "Tamas Stahl"
+date: "03/01/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r packages, include=FALSE}
+library(tidyverse)
+require(scales)
+library(lspline)
+library(estimatr)
+library(texreg)
+library(ggthemes)
+library(car)
+library(ggplot2)
+library(moments)
+library(ggpubr)
+library(xtable)
+library(ggrepel)
+library(gridExtra)
+library(segmented)
+library(texreg)
+
+
+my_url <- "https://raw.githubusercontent.com/tamasstahl/DA2-Term-Project/main/data/raw/Pisa_2018_Data.csv"
+df <- read_csv( my_url )
+
+df <-df %>% transmute( countries =  Countries,
+                       OECD_or_not = `OECD or Partner`,
+                       reading_mean = `Mean score reading`,
+                       reading_mean_boys = `Boys means score reading`,
+                       reading_mean_girls = `Girls Mean score reading`,
+                       reading_score_diff = `Score diff reading`,
+                       maths_mean = `Mean score maths`,
+                       maths_mean_boys = `Boys mean score maths`,
+                       maths_mean_girls = `Girls means score maths`,
+                       maths_score_diff = `Score diff maths`,
+                       science_mean = `Mean score science`,
+                       science_mean_boys = `Boys mean score science`,
+                       science_mean_girls = `Girls mean score science`,
+                       science_score_diff = `Score diff science`,
+                       internet_time_school = `Time spent on internet at school (minutes)`,
+                       internet_time_home_weekdays = `Time spent on internet at home weekdays (minutes)`,
+                       internet_time_home_weekends = `Time spent on internet at home weekends (minutes)`,
+                       gov_public_schools_ratio = `Percentage of government or public schools`,
+                       private_schools_ratio = `Percentage of private schools`,
+                       life_sat = `Average life satisfaction (1-10)`,
+                       bullying_ratio = `Percentage of frequently bullied students`)
+
+Selected <-
+  df %>%
+  filter(countries %in% c("Georgia", "Colombia", "Indonesia", "Greece", "Jordan", "OECD average", "Japan", "Poland", "Singapore", "Finland", "Singapore", "Hungary", "United States"))
+
+df_internet <- read_csv( my_url )
+
+df_internet <-df_internet %>% transmute( countries =  Countries,
+                       OECD_or_not = `OECD or Partner`,
+                       reading_mean = `Mean score reading`,
+                       reading_mean_boys = `Boys means score reading`,
+                       reading_mean_girls = `Girls Mean score reading`,
+                       reading_score_diff = `Score diff reading`,
+                       maths_mean = `Mean score maths`,
+                       maths_mean_boys = `Boys mean score maths`,
+                       maths_mean_girls = `Girls means score maths`,
+                       maths_score_diff = `Score diff maths`,
+                       science_mean = `Mean score science`,
+                       science_mean_boys = `Boys mean score science`,
+                       science_mean_girls = `Girls mean score science`,
+                       science_score_diff = `Score diff science`,
+                       internet_time_school = `Time spent on internet at school (minutes)`,
+                       internet_time_home_weekdays = `Time spent on internet at home weekdays (minutes)`,
+                       internet_time_home_weekends = `Time spent on internet at home weekends (minutes)`,
+                       gov_public_schools_ratio = `Percentage of government or public schools`,
+                       private_schools_ratio = `Percentage of private schools`,
+                       life_sat = `Average life satisfaction (1-10)`,
+                       bullying_ratio = `Percentage of frequently bullied students`)
+
+
+df_internet$life_sat[is.na(df_internet$life_sat)] <- mean(df_internet$life_sat, na.rm = TRUE)
+df_internet$life_sat <- round(df_internet$life_sat, digits = 1)
+
+df_internet$private_schools_ratio[is.na(df_internet$private_schools_ratio)] <- mean(df_internet$private_schools_ratio, na.rm = TRUE)
+df_internet$private_schools_ratio <- round(df_internet$private_schools_ratio, digits = 1)
+
+df_internet$gov_public_schools_ratio[is.na(df_internet$gov_public_schools_ratio)] <- mean(df_internet$gov_public_schools_ratio, na.rm = TRUE)
+df_internet$gov_public_schools_ratio <- round(df_internet$gov_public_schools_ratio, digits = 1)
+
+df_internet$bullying_ratio[is.na(df_internet$bullying_ratio)] <- mean(df_internet$bullying_ratio, na.rm = TRUE)
+df_internet$bullying_ratio <- round(df_internet$bullying_ratio, digits = 1)
+
+df_internet$life_sat[is.na(df_internet$life_sat)] <- mean(df_internet$life_sat, na.rm = TRUE)
+df_internet$life_sat <- round(df_internet$life_sat, digits = 1)
+
+df_internet <- df_internet %>% filter( complete.cases( df_internet ) )
+
+#Creating a dummy variable whether a country is OECD or PArtners country
+df_internet$OECD_or_not <- ifelse(df_internet$OECD_or_not == 'OECD', 1, 0)
+
+```
+
+## Subject of the Analysis
+
+In my analysis I intend to uncover whether more internet usage at home during weekdays translates to higher score at the 2018 PISA test taken by 15-year old students. This can be useful as to see whether more internet time means time spent usefully on the internet.
+
+Another question for me was how each participant country performed compared to each other by gender. The question was that whether females performed better in the reading, maths and science sections of the 2018 PISA test.
+
+In order to answer these questions I downloaded the official data from the PISA website and put the different variables in one CSV.
+
+## What is the PISA test
+
+Initiated by the Organization for Economic Cooperation and Development (OECD), an intergovernmental economic organization with 36 member countries, the Programme for International Student Assessment (PISA) is a study done to produce comparable data on education policy and outcomes across countries. The study, which began in the year 2000, conducts a test evaluating 15-year-olds in member and non-member countries to assess the quality and inclusivity of school systems in these countries. The PISA test is held every three years and the next test will be held in 2021.
+
+The aim of the test is not to rank the countries which volunteer to participate in the evaluation, but to give a comprehensive analysis of how education systems are working in terms of preparing its students for higher education and subsequent employment. After collecting results from across the world, experts translate these results into data points which are evaluated to score the countries.
+
+If a country scores well, it suggests that not only does it has an effective education system but an inclusive one, in which students from privileged and underprivileged backgrounds perform equally well. Further, the test evaluates whether the education system in these countries teach students adequate social and community skills, which will enable the students to excel holistically as a member of the workforce. OECD also hopes that the test will allow countries to learn from each other about effective education policies and improve their own systems, using others as examples.
+
+```{r, include=FALSE}
+df %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+  facet_wrap(~key, scales = "free") +
+  geom_histogram()+
+  theme_bw() + 
+  scale_fill_wsj()
+
+# Checking the data, found out that there are several observations with 0.
+summary( df )
+```
+
+## Data
+
+My data was clean when I downloaded it from the website of the OECD (https://gpseducation.oecd.org/). As mentioned above this test was created by the OECD to analyze the data. After researching I found that the OECD published six volumes of research based on the test scores of the 2018 PISA test. During the data collection phase it was fascinating to see how many questionnaires they got answer to, leading to mostly meaningful analysis. 
+
+Some cleaning and data imputation were necessary. First of all, I had a significant number of NA values for the internet usage variables, for which I could not use data imputation as it would alter my data too much.
+
+It is important to note that I created two separate data frames, "df" and "df_internet". For my question related to the internet usage I used "df_internet". This data set differs from "df" in one thing. In the "df_internet" data frame I included only the complete cases (after data imputation for certain variables like life satisfaction, bullying ration, etc.), which left me with 52 observations.
+
+For the "df" data frame I excluded the three variables connected to the internet usage, then imputed the same variables as at "df_internet". Finally, again I included only the complete cases, which left me with 79 observations.
+
+I found it important to prepare two data frames as if I have used "df_internet" for the "Do females perform better than males?" question, I would have left out some important countries from the results.
+
+
+```{r, include = FALSE}
+##Subset creating
+subset <- df %>% select(1, 2, 6, 10, 14)
+subset1 <- subset %>% filter( complete.cases( subset ) )
+subset2 <- subset1$OECD_or_not == "OECD"
+
+subsetOECD <- filter(subset1, OECD_or_not == "OECD")
+subsetPartners <- filter(subset1, OECD_or_not == "Partners")
+
+## OECD
+oecd1 <- ggplot(data=subsetOECD, aes(x=reorder(countries, maths_score_diff), y=maths_score_diff)) +
+  geom_bar(stat = "identity", aes(fill=maths_score_diff)) +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = mean(subsetOECD$maths_score_diff), size=1, color="black") +
+  geom_vline(xintercept = "OECD average", size = 1, color = "red") +
+  labs(x="", y="Maths")+
+  scale_fill_gradient(name="Score Difference", low = "red", high = "green")+
+  theme(legend.position = "none") +
+  ggtitle("OECD Maths Score Diff") 
+
+oecd2 <- ggplot(data=subsetOECD, aes(x=reorder(countries, reading_score_diff), y=reading_score_diff)) +
+  geom_bar(stat = "identity", aes(fill=reading_score_diff)) +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = mean(subsetOECD$reading_score_diff), size=1, color="black") +
+  geom_vline(xintercept = "OECD average", size = 1, color = "red") +
+  labs(x="", y="Reading")+
+  scale_fill_gradient(name="% Difference Level", low = "red", high = "green") +
+  theme(legend.position = "none")+
+  ggtitle("Reading Score Difference in PISA 2018 by Girls") 
+
+oecd3 <- ggplot(data=subsetOECD, aes(x=reorder(countries, science_score_diff), y=science_score_diff)) +
+  geom_bar(stat = "identity", aes(fill=science_score_diff)) +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = mean(subsetOECD$science_score_diff), size=1, color="black") +
+  geom_vline(xintercept = "OECD average", size = 1, color = "red") +
+  labs(x="", y="Reading")+
+  scale_fill_gradient(name="% Difference Level", low = "red", high = "green") +
+  theme(legend.position = "none")+
+  ggtitle("Science Score Difference in PISA 2018 by Girls")
+
+partners1 <- ggplot(data=subsetPartners, aes(x=reorder(countries, maths_score_diff), y=maths_score_diff)) +
+  geom_bar(stat = "identity", aes(fill=maths_score_diff)) +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = mean(subsetPartners$maths_score_diff), size=1, color="black") +
+  geom_vline(xintercept = "OECD average", size = 1, color = "red") +
+  labs(x="", y="Maths")+
+  scale_fill_gradient(name="Score Difference", low = "red", high = "green")+
+  theme(legend.position = "none") +
+  ggtitle("Partners Maths Score Diff") 
+
+partners2 <- ggplot(data=subsetPartners, aes(x=reorder(countries, reading_score_diff), y=reading_score_diff)) +
+  geom_bar(stat = "identity", aes(fill=reading_score_diff)) +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = mean(subsetPartners$reading_score_diff), size=1, color="black") +
+  geom_vline(xintercept = "OECD average", size = 1, color = "red") +
+  labs(x="", y="Reading")+
+  scale_fill_gradient(name="% Difference Level", low = "red", high = "green") +
+  theme(legend.position = "none")+
+  ggtitle("Reading Score Difference") 
+
+partners3 <- ggplot(data=subsetPartners, aes(x=reorder(countries, science_score_diff), y=science_score_diff)) +
+  geom_bar(stat = "identity", aes(fill=science_score_diff)) +
+  coord_flip() +
+  theme_bw() +
+  geom_hline(yintercept = mean(subsetPartners$science_score_diff), size=1, color="black") +
+  geom_vline(xintercept = "OECD average", size = 1, color = "red") +
+  labs(x="", y="Science")+
+  scale_fill_gradient(name="% Difference Level", low = "red", high = "green") +
+  theme(legend.position = "none")+
+  ggtitle("Science Score Difference")
+```
+
+As the PISA test consists of three parts (reading, maths and science) I was curious to check out my whether time spent on the internet at home during weekdays had any different affect on the score of each segment. The below table shows us that the pattern of association is almost a same with a large breaking point at a certain value for each of the three segments.
+
+```{r, fig.height = 2.5, echo = FALSE, warning = FALSE}
+## Checking whether there is any difference in maths, reading, science score and the time spent on the internet during weekdays.
+s1 <- ggplot( df_internet , aes(x = internet_time_home_weekdays, y = maths_mean))+
+  geom_point() +
+  geom_smooth(method="loess" , formula = y ~ x )+
+  theme_bw() +
+  labs(x = "Internet at home (mins)", y = "Average maths scores") 
+
+s2 <- ggplot( df_internet , aes(x = internet_time_home_weekdays, y = reading_mean)) +
+  geom_point() +
+  geom_smooth(method="loess" , formula = y ~ x )+
+  theme_bw() +
+  labs(x = "Internet at home (mins)", y = "Average reading scores")
+
+s3 <- ggplot( df_internet , aes(x = internet_time_home_weekdays, y = science_mean)) +
+  geom_point() +
+  geom_smooth(method="loess" , formula = y ~ x )+
+  theme_bw() +
+  labs(x = "Internet at home (mins)", y = "Average science scores")
+
+ggarrange(s1, s2, s3, nrow = 1)
+```
+
+\newpage
+## 1. Do females perform better than males?
+
+For this question I prepared only two graphs, due to the page limit of six pages. I decided to show the reading scores for boys and girls in 2018 and the score difference for the maths tests again in 2018. If you are interested in the other segments of the PISA test please look for the other graphs in the Appendix.
+
+The first chart shows the score difference by gender in the segment Maths for 2018. This view is from the view of females, which means that negative value means that in those countries the boys outperformed the girls. 
+
+Furthermore, the countries on the left are all OECD-member countries and the countries on the right are all Partner countries of the PISA test. We could see from the charts that the partner countries outperformed the OECD countries based solely on the OECD average. For instance, Hungary falls below the OECD average.
+
+```{r, fig.height = 4.5, echo = FALSE, warning = FALSE}
+grid.arrange(oecd1, partners1, nrow = 1,
+             top = 'Do Females perform better than Males in Maths?',
+             bottom = 'Score Difference from Females in 2018'
+)
+```
+
+A subset of 12 countries and the OECD average was created to better visualize them in the chart below. By applying this we could easily see which countries underperformed meaning that they did not even reach the OECD average. 
+
+The second chart is to represent the average reading score of each nation's boys and girls. We could determine that the range is really wide in the scores from low-300 all the way up to 550. One of the most surprising finding was that the girls outperformed the boys in all the countries mentioned in this analysis (we are speaking about around 80 countries). The dotted line means either that the boys scored 20 points more than girls or vica versa, the girls scored 20 points more than the boys.
+
+```{r, fig.height=3, echo= FALSE, warning=FALSE}
+ggplot(df, aes(x = reading_mean_boys, y = reading_mean_girls, label = countries)) +
+  geom_point() +
+  geom_point(data= Selected, color="red") +
+  geom_text_repel(data= Selected, mapping = aes(label=countries), color="grey20", hjust = 2) +
+  geom_abline(slope=1, intercept = 0) + 
+  geom_abline(slope=1, intercept = 20, linetype = 2, color="grey50") + 
+  geom_abline(slope=1, intercept = -20, linetype = 2, color="grey50") +
+  theme_bw() + ggtitle("Reading Score in PISA 2018 by Gender") +
+  xlab("PISA 2018 Reading Score for Boys") +
+  ylab("PISA 2018 Reading Score for Girls")
+```
+
+## Conclusion
+
+For question 1 we could say that in the reading segment females outperformed males unanimously in every country. The maths segment was more balanced with males being slightly better than females. Finally, the science segment resulted in female dominance, especially in the PArtner countries. Again, please refer to the charts in the Appendix.
+
+## 2. More internet usage at home during weekdays translates to higher score at the 2018 PISA test?
+
+As seen in the first visualizations the pattern of association of the reading, maths, science scores and the internet usage at home on weekdays are similar. Therefore, I moved on to analyze only the reading scores of the PISA test 2018. Additionally, it was chosen as females performed in this segment the best. 
+
+In order to answer this question I had to choose a model, which are the following:
+
+No control, simple linear regression -> 
+$reg1 = lm\_robust( reading\_mean ~~ internet\_time\_home\_weekdays , data = df\_internet)$
+
+No control, but PLS with knots at 180 -> 
+$reg2 = lm\_robust( reading\_mean ~~ lspline( internet\_time\_home\_weekdays, 180) , data = df\_internet)$
+
+Control for OCED or not dummy -> 
+$reg3 = lm\_robust( reading\_mean ~~ lspline( internet\_time\_home\_weekdays, 180) + OECD\_or\_not, data = df\_internet)$
+
+Control for not only OECD dummy but life satisfaction PLS and bullying ratio as controls ->
+$reg4 = lm\_robust( reading\_mean ~~ lspline( internet\_time\_home\_weekdays, 180) + OECD\_or\_not + lspline( life\_sat, 6 ) + bullying\_ratio, data = df\_internet)$
+
+The table below shows us the results of each model. 
+
+```{r, include = FALSE, echo=FALSE, warning=FALSE}
+## Models
+# reg1: NO control, simple linear regression
+reg1 <- lm_robust( reading_mean ~ internet_time_home_weekdays , data = df_internet )
+summary( reg1 )
+
+# reg2: NO controls, piecewise linear spline(P.L.S) with a knot at 180
+reg2 <- lm_robust( reading_mean ~ lspline( internet_time_home_weekdays , 180 ) , data = df_internet )
+summary( reg2 )
+
+# interactions for stratio: let a dummy be: internet_time_home_weekdays > 180, 
+reg21 <- lm_robust( reading_mean ~ internet_time_home_weekdays + (internet_time_home_weekdays > 180) + internet_time_home_weekdays*(internet_time_home_weekdays > 180) , data = df_internet )
+summary( reg21 )
+
+# finding the knots
+reg1_lm <- lm( reading_mean ~ internet_time_home_weekdays , data = df_internet )
+fit_seg <- segmented( reg1_lm , seg.Z = ~internet_time_home_weekdays, psi = list(internet_time_home_weekdays=130))
+summary(fit_seg)
+
+## OECD dummy
+reg3 <- lm_robust( reading_mean ~ lspline( internet_time_home_weekdays , 180 ) + OECD_or_not, data = df_internet )
+summary( reg3 )
+
+reg31 <- lm_robust( reading_mean ~ lspline( internet_time_home_weekdays , 180 ) + OECD_or_not + lspline( internet_time_home_weekdays , 180 ) * OECD_or_not, data = df_internet )
+summary( reg31 )
+
+
+# reg4: reg3 + life satisfaction (life_sat with P.L.S, knot: 6; and bullying ratio)
+reg4 <- lm_robust( reading_mean ~ lspline( internet_time_home_weekdays , 180 ) + OECD_or_not + lspline(life_sat,6) + bullying_ratio , data = df_internet )
+summary( reg4 )
+
+## Data
+data_out <- "C:/Users/ADMIN/Desktop/CEU/DA2/Term-project/"
+
+
+texreg(list(reg1 , reg2 , reg3 , reg4), 
+         custom.header = list("Average reading scores in 2018"=1:4),
+         custom.model.names = c("(1)","(2)","(3)","(4)"),
+         custom.coef.names = c("Intercept","internet at home on weekdays","internet at home on weekdays (<180 mins)","internet at home on weekdays (>=180 mins)", "OECD_or_not","lspline(life_sat,6)1","lspline(life_sat,6)2","bullying ratio"), include.ci = FALSE,
+       single.row = FALSE, siuntix = FALSE,
+         omit.coef = "OECD_or_not|life_sat | bullying_ratio",
+         custom.gof.rows = list( OECD_or_not = c("NO","NO","YES","YES"),
+                                 Other_Special = c("NO","NO","NO","YES")))
+
+```
+
+```{r, echo = FALSE, results='asis', scalebox = 0.5}
+## Data
+
+htmlreg( list(reg1 , reg2 , reg3 , reg4),
+         type = 'html',
+         custom.header = list("Average reading scores in 2018"=1:4),
+         custom.model.names = c("(1)","(2)","(3)","(4)"),
+         custom.coef.names = c("Intercept","internet at home on weekdays","internet at home on weekdays (<180 mins)","internet at home on weekdays (>=180 mins)",
+                               "OECD_or_not","lspline(life_sat,6)1","lspline(life_sat,6)2","bullying ratio"),
+         omit.coef = "OECD_or_not|life_sat", include.ci = FALSE,
+         single.row = FALSE, siunitx = TRUE,
+         custom.gof.rows = list( OECD_or_not = c("NO","NO","YES","YES"),
+                                 Other_Special = c("NO","NO","NO","YES")))
+
+```
+
+\newpage
+
+## Conclusion
+We could see that the linear regression coefficient is 0.31 meaning that by one minute more internet usage means 0.31 point more on the reading test. However, we should note that this is not significant.
+
+The second model still has no controls. The coefficient means, in case of more than 180 minutes of internet usage at home on weekdays results, that one minute more internet usage results in more than 1.5 lower score on average reading scores. it is significant at 1 percent. In case of less than 180 minutes of internet usage at home on weekdays has a different effect, namely one minute more internet usage results in almost 0.9 higher score on average test scores. However, this is only significant at 5 percent. 
+
+This means that until the breaking point of 180 minutes, the score improves with one unit higher internet usage but after 180 minutes it decreases at an even larger rate. 
+
+In reg3 and reg4 we included controls like life satisfaction and bullying ratio. We could still see similar values, tho slightly decreasing. By adding controls our parameter of interest reduced only slightly to first -1.01 in reg3 then increased slightly to -1.14 in reg4. In this case the parameter of interest is not significant, but our analysis is trustworthy. 
+
+Our results could be different if we have more disaggregated data and not average score. Getting information on all the test results for the reading segment would enable us to see a pattern of association more clearly. However, we could say that after the breakpoint of 180 minutes of internet usage, the average reading scores tend to decline.
+
+\newpage
+## Exectuive summary
+In my analysis I conclude that females performed better than males in reading and science, meanwhile there is only a small difference in the maths scores. I also checked how the OECD and the non-OECD countries fared in the PISA 2018 test, as a benchmark the OECD average score was taken. 
+
+One finding was that Hungary underperformed the OECD average score, meanwhile Singapore and the representatives of China were always in the top performing countries in all segments of the test. The contries consistently performed on the same level in the different segments. 
+
+The external validity could be checked with the 2015 or previous tests written by the students. Although, it should be noted that in some countries there might not be a PISA test but rather some test that is equivalent. Also, it should be noted that the PISA test is rather newly founded (in 2000) and only a small sample of each country is taking place. Leaving us with the problem whether this is representative. 
+
+Regarding question two we could conclude that using reg2 as our model, which is a linear regression with PLS and a knot of 180 minutes. The coefficient means, in case of more than 180 minutes of internet usage at home on weekdays results, that one minute more internet usage results in more than 1.5 lower score on average reading scores. it is significant at 1 percent. In case of less than 180 minutes of internet usage at home on weekdays has a different effect, namely one minute more internet usage results in almost 0.9 higher score on average test scores. However, this is only significant at 5 percent. If we would have used reg3 or reg4 the coefficients would have been insignficiant.
+
+As for the answer of my question, we could say that more time on the internet at home on weekdays does not mean more usefully spent minutes on the internet.
+
+\pagebreak
+## Appendix
+
+```{r, fig.height = 4, echo=FALSE, warning=FALSE}
+ggplot(df, aes(x = maths_mean_boys, y = maths_mean_girls, label = countries)) +
+  geom_point() +
+  geom_point(data= Selected, color="red") +
+  geom_text_repel(data= Selected, mapping = aes(label=countries), color="grey20", hjust = 2) +
+  geom_abline(slope=1, intercept = 0) + 
+  geom_abline(slope=1, intercept = 20, linetype = 2, color="grey50") + 
+  geom_abline(slope=1, intercept = -20, linetype = 2, color="grey50") +
+  theme_bw() + ggtitle("Maths Score in PISA 2018 by Gender") +
+  xlab("PISA 2018 Maths Score for Boys") +
+  ylab("PISA 2018 Maths Score for Girls")
+```
+
+
+```{r, fig.height = 4, echo=FALSE, warning=FALSE}
+ggplot(df, aes(x = science_mean_boys, y = science_mean_girls, label = countries)) +
+  geom_point() +
+  geom_point(data= Selected, color="red") +
+  geom_text_repel(data= Selected, mapping = aes(label=countries), color="grey20", hjust = 2) +
+  geom_abline(slope=1, intercept = 0) + 
+  geom_abline(slope=1, intercept = 20, linetype = 2, color="grey50") + 
+  geom_abline(slope=1, intercept = -20, linetype = 2, color="grey50") +
+  theme_bw() + ggtitle("Science Score in PISA 2018 by Gender") +
+  xlab("PISA 2018 Science Score for Boys") +
+  ylab("PISA 2018 Science Score for Girls")
+```
+
+
+```{r, fig.height = 4, echo = FALSE}
+grid.arrange(oecd1, partners1, nrow = 1,
+             top = 'Do Females perform better than Males in Maths?',
+             bottom = 'Score Difference from Females in 2018'
+)
+
+grid.arrange(oecd2, partners2, nrow = 1,
+             top = 'Do Females perform better than Males in Reading?',
+             bottom = 'Score Difference from Females in 2018'
+)
+
+grid.arrange(oecd3, partners3, nrow = 1,
+             top = 'Do Females perform better than Males in Science?',
+             bottom = 'Score Difference from Females in 2018'
+)
+```
+
+
+```{r, fig.height = 4, echo=FALSE, warning=FALSE, error=FALSE}
+ggplot( data = df_internet, aes( x = internet_time_home_weekdays, y = reading_mean ) ) + 
+  geom_point( color='blue') +
+  geom_smooth( formula = y ~ lspline(x,180) , method = lm , color = 'red' )+
+  ggtitle("reg2")
+```
