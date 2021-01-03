@@ -1,3 +1,5 @@
+Description of the variables used for the project:
+
 1. countries (qualitative) which country
 2. OECD_or_not: (binary)  whether OECD or non-OECD 0: no, 1: yes
 3. reading_mean: (quantitative) the average reading score
